@@ -1,0 +1,42 @@
+.m-data-designer {
+    height   : 100%;
+    font-size: 12px;
+    position : relative;
+
+    .ivu-tree {
+        .ivu-tree-arrow {
+            display: inline !important;
+        }
+    }
+
+    .contextmenu {
+        position   : absolute;
+        z-index    : 100;
+        margin-top : -10px;
+        margin-left: 15px;
+    }
+
+    // &-left {
+    //     height: 100%;
+    // }
+
+    &-left, &-pane {
+        position: absolute;
+        top     : 0;
+        left    : 0;
+        right   : 0;
+        bottom  : 0;
+        padding : 5px;
+        overflow: auto;
+    }
+
+    &-pane.bottom {
+        margin-top: 6px;
+    }
+
+    &-pane.right {
+        margin-left   : 6px;
+        display       : flex;
+        flex-direction: column;
+    }
+}
