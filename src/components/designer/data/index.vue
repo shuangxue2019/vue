@@ -28,9 +28,10 @@
       </div>
       <div slot="right" @contextmenu.prevent="()=>{return;}">
         <div class="m-data-designer-pane right">
-          <table-designer v-if="comType=='table'"></table-designer>
-          <query-designer v-else-if="comType=='query'"></query-designer>
+          <table-designer v-if="comType=='table'" :code="comCode"></table-designer>
+          <query-designer v-else-if="comType=='query'" :code="comCode"></query-designer>
           <div v-else>数据表设计器</div>
+          <vspin :loading="viewLoading"></vspin>
         </div>
       </div>
     </Split>
@@ -98,6 +99,8 @@ export default {
   data() {
     return {
       menuLoading: false,
+      // 视图切换载入状态
+      viewLoading: false,
       designerSplitLeft: "160px",
       designerSplitTop: 0.5,
       dataTree: null,
@@ -110,16 +113,17 @@ export default {
         click: (node, item, e) => {
           switch (item.type) {
             case "table":
-              this.openTable(item.text);
+              this.openTable(item.value);
               break;
             case "query":
-              this.openQuery(item.text);
+              this.openQuery(item.value);
               break;
           }
         }
       },
       dataTreeCurrentType: null,
       comType: "",
+      comCode: "",
       tableForm: {
         visible: false,
         model: {},
@@ -169,8 +173,8 @@ export default {
         });
     },
     // 打开表
-    openTable(name) {
-      this.comType = "table";
+    openTable(code) {
+      this.changeView("table", code);
     },
     // 新建表
     newTable() {
@@ -187,9 +191,14 @@ export default {
       this.tableForm.visible = true;
       console.log("新加表");
     },
+    // 切换视图
+    changeView(type, code) {
+      this.comType = type;
+      this.comCode = code;
+    },
     // 打开查询
-    openQuery(name) {
-      this.comType = "query";
+    openQuery(code) {
+      this.changeView("query", code);
     },
     // 提交表单
     tableSubmit() {},

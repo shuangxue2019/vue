@@ -72,19 +72,20 @@
 </style>
 <template>
   <div class="query-designer">
+    <vspin :loading="queryLoading"></vspin>
     <tool-bar>
-      <tool-button icon="ios-play" label="运行" color="green" />
-      <tool-button icon="md-radio-button-on" label="停止" color="red" />
-      <tool-button icon="md-checkmark" label="保存" />
-      <tool-button icon="ios-document" label="另存为" />
-      <tool-button icon="ios-leaf" label="格式化" />
+      <tool-button icon="ios-play" label="运行" color="green" @click="onExecute" />
+      <!-- <tool-button icon="md-radio-button-on" label="停止" color="red" /> -->
+      <tool-button icon="md-checkmark" label="保存" @click="onSave" :event="!config.saving" />
+      <tool-button icon="ios-document" label="另存为" @click="openSaveAs" />
+      <!-- <tool-button icon="ios-leaf" label="格式化" /> -->
       <div slot="right">
         <tool-button icon="logo-javascript" label="类库" :onlyIcon="true" @click="libs.visible=true" />
       </div>
     </tool-bar>
     <Split v-model="split.value" mode="vertical" :min="split.min" @on-move-end="onSplitChange">
       <div slot="top" class="query-designer-text">
-        <code-edit></code-edit>
+        <code-edit v-model="config.model.body"></code-edit>
       </div>
       <div slot="bottom" class="query-designer-view">
         <Tabs type="card" :animated="false">
@@ -136,18 +137,14 @@
                 <FormItem label="调用模板" prop="template">
                   <code-edit :border="true" v-model="config.model.template"></code-edit>
                 </FormItem>
-                <FormItem label="查询描述" prop="descr">
+                <FormItem label="查询描述" prop="comment">
                   <Input
-                    v-model="config.model.descr"
+                    v-model="config.model.comment"
                     type="textarea"
                     :autosize="{minRows: 2,maxRows: 5}"
                     placeholder="查询描述"
                     class="no-resize"
                   />
-                </FormItem>
-                <FormItem>
-                  <Button type="primary">提交</Button>
-                  <Button style="margin-left: 8px">重置</Button>
                 </FormItem>
               </Form>
             </div>
@@ -165,11 +162,25 @@
     >
       <libs></libs>
     </Drawer>
+    <!-- 另存查询 -->
+    <Modal v-model="config.saveAsVisible" title="另存查询为" @on-ok="onSaveAs">
+      <Form :model="config.saveAsModel" :rules="config.saveAsRules" :label-width="80">
+        <FormItem label="查询编码" prop="code">
+          <Input v-model="config.saveAsModel.code" placeholder="请输入查询编码" />
+        </FormItem>
+      </Form>
+    </Modal>
   </div>
 </template>
 <script>
 import { codeEdit } from "../../../parts";
 import libs from "./libs";
+import {
+  getQuery,
+  exeQueryTest,
+  saveQuery,
+  saveQueryAs
+} from "&/designer/data";
 const INIT_COLUMN = {
   width: 100,
   minWidth: 100,
@@ -183,8 +194,16 @@ export default {
     codeEdit,
     libs
   },
+  props: {
+    code: {
+      type: String,
+      default: ""
+    }
+  },
   data() {
     return {
+      queryCode: this.code,
+      queryLoading: false,
       table: {
         height: 200,
         columns: [],
@@ -197,10 +216,25 @@ export default {
         }
       },
       config: {
+        saving: false,
+        saveAsVisible: false,
+        saveAsRules: {
+          code: [
+            {
+              required: true,
+              message: "查询编码必须要填写，且必须是唯一的",
+              trigger: "blur"
+            }
+          ]
+        },
+        saveAsModel: {
+          code: this.queryCode
+        },
         model: {
           name: "",
-          descr: "",
-          template: "test 123"
+          comment: "",
+          template: "",
+          body: ""
         },
         rules: {
           name: [
@@ -229,38 +263,24 @@ export default {
       });
     }
   },
+  watch: {
+    code: {
+      immediate: true,
+      handler: async function(code) {
+        this.queryLoading = true;
+        await this.getQuery(code);
+        this.queryLoading = false;
+        this.queryCode = code;
+        this.config.saveAsModel.code = code;
+      }
+    }
+  },
   mounted() {
     const resize = () => {
       this.onSplitChange();
     };
     window.addEventListener("resize", resize);
     setTimeout(resize, 10);
-
-    // test
-    this.table.loading = true;
-    setTimeout(() => {
-      this.table.columns = [
-        { ...INIT_COLUMN, title: "编码", key: "code" },
-        { ...INIT_COLUMN, title: "标题", key: "title" },
-        { ...INIT_COLUMN, title: "ID", key: "ID" },
-        { ...FULL_COLUMN }
-      ];
-
-      // 载入1000条数据看看
-      const arr = [];
-      for (let i = 0; i < 1000; i++) {
-        arr.push({
-          code: (i + 1).toString().padStart(5, "0"),
-          title: `测试_${i + 1}`,
-          ID: i + 1
-        });
-      }
-
-      this.table.totalData = arr;
-      this.table.nav.page = 1;
-      this.onTablePageChange(this.table.nav.page);
-      this.table.loading = false;
-    }, 500);
   },
   methods: {
     onTablePageChange(page) {
@@ -274,6 +294,73 @@ export default {
       const $table = this.$refs.table;
       if (!$table || !$table.offsetHeight) return;
       this.table.height = $table.offsetHeight - 30;
+    },
+    async getQuery(code) {
+      await getQuery(code)
+        .then(res => {
+          this.$u.resCall(this, res, res => {
+            this.config.model = res.data;
+          });
+        })
+        .catch(e => {
+          this.$u.msg.problem(this, e);
+        });
+    },
+    // 执行查询测试
+    onExecute() {
+      this.table.loading = true;
+      exeQueryTest(this.queryCode)
+        .then(res => {
+          this.$u.resCall(this, res, res => {
+            const { columns = [], data = [] } = res.data;
+            this.table.columns = columns;
+            this.table.totalData = data;
+            this.table.nav.page = 1;
+            this.onTablePageChange(this.table.nav.page);
+          });
+        })
+        .catch(e => {
+          this.$u.msg.problem(this, e);
+        })
+        .then(() => {
+          this.table.loading = false;
+        });
+    },
+    // 保存查询
+    onSave() {
+      this.$u.call(
+        this,
+        e => {
+          return saveQuery(this.config.model);
+        },
+        {
+          start: () => {
+            this.config.saving = true;
+          },
+          end: () => {
+            this.config.saving = false;
+          }
+        }
+      );
+    },
+    // 打开另存为界面
+    openSaveAs() {
+      this.config.saveAsModel = {
+        ...{
+          code: this.queryCode
+        }
+      };
+      this.config.saveAsVisible = true;
+    },
+    // 将查询另存为
+    onSaveAs() {
+      this.$u.call(this, e => {
+        e.success = res => {
+          this.queryCode = this.config.saveAsModel.code;
+          console.log("成功")
+        };
+        return saveQueryAs(this.config.saveAsModel);
+      });
     }
   }
 };

@@ -19,7 +19,7 @@
 }
 </style>
 <template>
-  <a :class="['m-top-tool-btn', color]" @click.prevent="onClick">
+  <a :class="['m-top-tool-btn', color]" @click.prevent="onClick" :disabled="disabled">
     <span v-if="!onlyIcon">
       <Icon :type="icon" :size="20" />
       {{label}}
@@ -49,6 +49,16 @@ export default {
     onlyIcon: {
       type: Boolean,
       default: false
+    },
+    // 禁止点击
+    disabled: {
+      type: Boolean,
+      default: false
+    },
+    // 是否事件有效
+    event: {
+      type: Boolean,
+      default: true
     }
   },
   data() {
@@ -57,6 +67,7 @@ export default {
   mounted() {},
   methods: {
     onClick(e) {
+      if (!this.event) return false;
       const func = this.$listeners["click"];
       if (func) {
         this.$emit("click", e);

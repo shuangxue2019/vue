@@ -84,6 +84,7 @@
 </style>
 <template>
   <div class="m-table-designer">
+    <vspin :loading="tableLoading"></vspin>
     <tool-bar>
       <tool-button icon="ios-archive" label="保存" />
       <tool-button icon="md-checkmark" label="应用" />
@@ -132,9 +133,7 @@
               size="small"
               :border="true"
               :data="tableColumns"
-              :row-class-name="(row, index)=>{
-          if(row['system']) return 'tr-system';
-          }"
+              :row-class-name="(row, index)=>{if(row['system']) return 'tr-system';}"
             ></Table>
             <Page
               :total="pagenav.total"
@@ -180,9 +179,27 @@ import {
 } from "../../models/table-struct";
 import { comProperty } from "../../../parts";
 import { TABLE_SYS_DATA, OPERATION_HISTORY_DFI } from "./table-designer-dfi";
+import { getTable, getTableHis } from "&/designer/data";
 export default {
   components: {
     comProperty
+  },
+  props: {
+    code: {
+      type: String,
+      default: ""
+    }
+  },
+  watch: {
+    code: {
+      handler: async function(val) {
+        this.tableLoading = true;
+        await this.getTable();
+        await this.getTableHis();
+        this.tableLoading = false;
+      },
+      immediate: true
+    }
   },
   data() {
     const dbopts = ColumnType;
@@ -447,6 +464,7 @@ export default {
         total: 5,
         pageSize: 30
       },
+      tableLoading: false,
       tableInfoModel: {},
       comPropertyVisible: false,
       menuTheme: "primary",
@@ -686,8 +704,7 @@ export default {
     window.addEventListener("resize", resize);
     resize();
 
-    // 模拟载入数据
-    this.tableColumns = [...TABLE_SYS_DATA];
+    this.getTable();
   },
   methods: {
     createColumn(field) {
@@ -714,6 +731,32 @@ export default {
     openComSetting(field) {
       this.currentComponent = field;
       this.comPropertyVisible = true;
+    },
+    // 获取表
+    async getTable() {
+      await getTable(this.code)
+        .then(res => {
+          this.$u.resCall(this, res, res => {
+            const { descr, columns } = res.data;
+            this.tableInfoModel = descr;
+            this.tableColumns = columns;
+          });
+        })
+        .catch(e => {
+          this.$u.msg.problem(this, e);
+        });
+    },
+    // 获取表操作记录
+    async getTableHis() {
+      await getTableHis(this.code)
+        .then(res => {
+          this.$u.resCall(this, res, res => {
+            this.hisTable.data = res.data;
+          });
+        })
+        .catch(e => {
+          this.$u.msg.problem(this, e);
+        });
     }
   }
 };

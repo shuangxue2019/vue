@@ -44,18 +44,18 @@ const install = function (Vue) {
                 })
             },
             problem: function (v, message) {
-                this.error(v, `${message || '服务器异常'}<br/>错误代码：0000000`)
+                this.error(v, `${message || '服务器异常'}(0000000)`)
             }
         },
         // 返回消息
         resMsg: function (v, res, err) {
             if (err) {
-                this.msg.error(v, `${res.message}<br/>错误代码：${res.code}`)
+                this.msg.error(v, `${res.message}(${res.code})`)
             } else {
                 if (res.isOk) {
                     if (res.message) this.msg.success(v, res.message)
                 } else {
-                    this.msg.error(v, `${res.message}<br/>错误代码：${res.code}`)
+                    this.msg.error(v, `${res.message}(${res.code})`)
                 }
             }
         },
@@ -71,6 +71,35 @@ const install = function (Vue) {
                 }
             }
             this.resMsg(v, res);
+        },
+        // 调用返回方法，简洁版
+        call: function (v, fun, opts) {
+            if (opts && opts.start) {
+                opts.start();
+            }
+            let obj = {
+                success: null,
+                error: null
+            };
+            const res = fun(obj);
+            res.then(r => {
+                if (r.isOk) {
+                    if (obj.success) {
+                        obj.success(r);
+                    }
+                } else {
+                    if (obj.error) {
+                        obj.error(r);
+                    }
+                }
+                this.resMsg(v, r);
+            }).catch(e => {
+                this.msg.problem(v, e)
+            }).then(() => {
+                if (opts && opts.end) {
+                    opts.end();
+                }
+            })
         }
     };
 }
